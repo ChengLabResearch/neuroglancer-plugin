@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neuroglancer</title>
+</head>
+<body>
+  <div id="neuroglancer-container" role="main" aria-label="Neuroglancer viewer"></div>
+  <div id="infoDisplay" aria-live="polite" role="status"></div>
+  <button id="ontologyQuickToggle" class="floating-toggle" type="button" aria-expanded="false" aria-controls="ontologyDrawer">
+    Ontology ▸
+  </button>
+  <aside id="ontologyDrawer" class="ontology-drawer" aria-hidden="true">
+    <div class="ontology-drawer-header">
+      <div class="ontology-drawer-title">Ontology</div>
+      <button id="ontologyDrawerClose" class="ontology-drawer-close" type="button" aria-label="Close ontology drawer">×</button>
+    </div>
+    <div class="ontology-drawer-body">
+      <input id="searchInput" type="text" aria-label="Search ontology" placeholder="Search ontology" />
+      <div id="ontologyContainer"></div>
+    </div>
+  </aside>
+  <div id="tool-overlay-container" class="tool-overlay-container">
+    <div id="dynamic-tool-menu" class="dynamic-tool-menu hidden" aria-hidden="true" role="menu"></div>
+  </div>
+  <script type="module" src="/src/App/NG/index.ts"></script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import styles from "./styles.module.css"
 import Menu from "./Menu"
 import Modal from "./Modal"
@@ -11,6 +11,15 @@ import SaveFile from "./SaveFile"
 const PORT = 8001
 
 const REFRESH_INTERVAL = 1000
+const NG_REFACTOR_EMBED_PATH = "/ngrefactor.html"
+
+type ViewerMode = "ngrefactor" | "backend"
+type EmbeddedViewer = {
+	state: {
+		restoreState: (state: object) => void
+		toJSON: () => object
+	}
+}
 
 export type DirectoryData = {
 	type: string
@@ -35,6 +44,7 @@ function App(): JSX.Element {
 	const [connected, setConnected] = useState<boolean>(false)
 	const [ngViewerURL, setNgViewerURL] = useState<string | null>(null)
 	const [fetchingNGURL, setFetchingNGURL] = useState<boolean>(false)
+	const [viewerMode, setViewerMode] = useState<ViewerMode | null>(null)
 
 	const [directoryData, setDirectoryData] = useState<DirectoryData | null>(
 		null
@@ -44,8 +54,88 @@ function App(): JSX.Element {
 	const [form, setForm] = useState<string>("")
 
 	const [isFullscreen, setIsFullscreen] = useState<boolean>(false)
+	const iframeRef = useRef<HTMLIFrameElement | null>(null)
+
+	const waitForEmbeddedViewer = async (
+		timeoutMs = 12_000,
+		intervalMs = 100
+	): Promise<EmbeddedViewer | null> => {
+		const start = Date.now()
+
+		while (Date.now() - start <= timeoutMs) {
+			const frameWindow = iframeRef.current
+				?.contentWindow as (Window & {
+					viewer?: {
+						state?: {
+							restoreState: (state: object) => void
+							toJSON: () => object
+						}
+					}
+				}) | null
+
+			const viewer = frameWindow?.viewer
+			if (viewer?.state) {
+				return viewer as EmbeddedViewer
+			}
+
+			await new Promise((resolve) => setTimeout(resolve, intervalMs))
+		}
+
+		return null
+	}
+
+	const setEmbeddedViewerState = async (contents: string) => {
+		try {
+			const parsed = JSON.parse(contents)
+			const viewer = await waitForEmbeddedViewer()
+			if (!viewer) return
+
+			viewer.state.restoreState(parsed)
+		} catch (error) {
+			console.error(error)
+		}
+	}
+
+	const getEmbeddedViewerState = async () => {
+		const viewer = await waitForEmbeddedViewer()
+		if (!viewer) return null
+
+		return viewer.state.toJSON()
+	}
 
 	useEffect(() => {
+		let cancelled = false
+
+		const chooseViewerSource = async () => {
+			try {
+				const response = await fetch(NG_REFACTOR_EMBED_PATH, {
+					cache: "no-store",
+				})
+
+				if (!cancelled && response.ok) {
+					setViewerMode("ngrefactor")
+					setNgViewerURL(NG_REFACTOR_EMBED_PATH)
+					return
+				}
+			} catch (error) {
+				console.error(error)
+			}
+
+			if (!cancelled) {
+				setViewerMode("backend")
+			}
+		}
+
+		chooseViewerSource()
+
+		return () => {
+			cancelled = true
+		}
+	}, [])
+
+	useEffect(() => {
+		if (viewerMode !== "backend") return
+
 		const runFetch = () => {
 			fetch(`http://localhost:${PORT}/`)
 				.then((res) => res.text())
@@ -56,9 +146,11 @@ function App(): JSX.Element {
 		if (connected === false) {
 			runFetch()
 		}
-	}, [connected])
+	}, [connected, viewerMode])
 
 	useEffect(() => {
+		if (viewerMode !== "backend") return
+
 		if (connected === true && ngViewerURL === null && !fetchingNGURL) {
 			// Fetch the path to the Neuroglancer viewer
 			fetch(`http://localhost:${PORT}/neuroglancer-url`)
@@ -68,7 +160,7 @@ function App(): JSX.Element {
 
 			setFetchingNGURL(true)
 		}
-	}, [connected, ngViewerURL, fetchingNGURL])
+	}, [connected, ngViewerURL, fetchingNGURL, viewerMode])
 
 	useEffect(() => {
 		const registerMessage = {
@@ -93,15 +185,22 @@ function App(): JSX.Element {
 					break
 				case "send-neuroglancer-json":
 				case "read-file-response":
-					// Use fetch to send the contents to the server,
-					// with the contents as the body of the request
-					fetch(`http://localhost:${PORT}/set-neuroglancer-state`, {
-						method: "POST",
-						headers: {
-							"Content-Type": "application/json",
-						},
-						body: result.data.contents, // `result.data.contents` is the contents of the file (a json string)
-					}).catch(console.error)
+					if (viewerMode === "ngrefactor") {
+						setEmbeddedViewerState(result.data.contents)
+						break
+					}
+
+					if (viewerMode === "backend") {
+						// Use fetch to send the contents to the server,
+						// with the contents as the body of the request
+						fetch(`http://localhost:${PORT}/set-neuroglancer-state`, {
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+							},
+							body: result.data.contents, // `result.data.contents` is the contents of the file (a json string)
+						}).catch(console.error)
+					}
 
 					break
 
@@ -115,7 +214,7 @@ function App(): JSX.Element {
 		return () => {
 			window.removeEventListener("message", listener)
 		}
-	}, [])
+	}, [viewerMode])
 
 	const toggleFullscreen = () => {
 		if (isFullscreen) closeFullscreen()
@@ -158,6 +257,13 @@ function App(): JSX.Element {
 	const onScreenshot = () => {
 		if (!directoryData || !directoryData.data.directoryPath) return
 
+		if (viewerMode !== "backend") {
+			console.warn(
+				"Screenshot capture is only available with backend Neuroglancer mode."
+			)
+			return
+		}
+
 		const directory = directoryData.data.directoryPath
 
 		fetch(
@@ -191,16 +297,25 @@ function App(): JSX.Element {
 
 		let state = null
 
-		// Get the neuroglancer state
-		try {
-			const result = await fetch(
-				`http://localhost:${PORT}/get-neuroglancer-state`
-			).then((res) => res.json())
+		if (viewerMode === "ngrefactor") {
+			try {
+				state = await getEmbeddedViewerState()
+			} catch (error) {
+				console.error(error)
+				return
+			}
+		} else if (viewerMode === "backend") {
+			// Get the neuroglancer state
+			try {
+				const result = await fetch(
+					`http://localhost:${PORT}/get-neuroglancer-state`
+				).then((res) => res.json())
 
-			state = result.state
-		} catch (error) {
-			console.error(error)
-			return
+				state = result.state
+			} catch (error) {
+				console.error(error)
+				return
+			}
 		}
 
 		// Write the neuroglancer state to the file
@@ -228,9 +343,24 @@ function App(): JSX.Element {
 
 	return (
 		<>
-			{connected ? (
+			{viewerMode === "ngrefactor" ? (
 				ngViewerURL ? (
 					<iframe
+						ref={iframeRef}
+						src={ngViewerURL}
+						className={styles.viewer}
+						title="Neuroglancer Viewer"
+						allowFullScreen
+					/>
+				) : (
+					<p className={styles.centeredText}>
+						Loading Neuroglancer viewer...
+					</p>
+				)
+			) : connected ? (
+				ngViewerURL ? (
+					<iframe
+						ref={iframeRef}
 						src={ngViewerURL}
 						className={styles.viewer}
 						title="Neuroglancer Viewer"
@@ -269,4 +399,3 @@ function App(): JSX.Element {
 }
 
 export default App
-
