@@ -7485,6 +7485,7 @@
       }
       if (!e2) throw Error("Automatic publicPath is not supported in this browser");
       e2 = e2.replace(/#.*$/, "").replace(/\?.*$/, "").replace(/\/[^\/]+$/, "/"), r.p = e2;
+      if (r.g.importScripts && /^blob:/.test(r.p)) r.p = self.location.origin + "/assets/js/";
     })(), (() => {
       r.b = self.location + "";
       var e2 = { 468: 1 };
