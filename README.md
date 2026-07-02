@@ -23,8 +23,25 @@ To test in Ouroboros, run Ouroboros in development mode as well, and use the `Te
 
 ### Release artifact
 
-Tagged releases publish `neuroglancer-plugin-<tag>.zip`. The archive root is the
-same layout that Ouroboros expects inside its plugin folder:
+The current production pin for Ouroboros package builds is:
+
+- tag: `v1.0.0`
+- release asset: `release.zip`
+
+That asset predates the named-artifact release workflow, but its archive root is
+still the same layout that Ouroboros expects inside its plugin folder:
+
+- `package.json`
+- `index.html`
+- `icon.svg`
+- `compose.yml`
+- frontend assets and backend runtime files
+
+The legacy `v1.0.0` asset does not include `plugin-release.json`; Ouroboros
+production package metadata should therefore record the pinned release tag and
+asset name directly.
+
+New tagged releases publish `neuroglancer-plugin-<tag>.zip` with:
 
 - `package.json`
 - `index.html`
@@ -33,6 +50,9 @@ same layout that Ouroboros expects inside its plugin folder:
 - `compose.yml`
 - frontend assets and runtime files
 - `plugin-release.json`
+
+The `plugin-release.json` metadata records the release tag, artifact name,
+commit, and packaged plugin version.
 
 For production package preinstalls, unpack the archive to
 `extra-resources/preinstalled-plugins/neuroglancer-plugin/` before building the
