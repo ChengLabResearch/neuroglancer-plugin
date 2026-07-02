@@ -38,13 +38,18 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Build release layout
-        run: npm run build:release
-
-      - name: Set artifact name
+      - name: Set release metadata
         run: |
           safe_ref="${GITHUB_REF_NAME//\//-}"
           echo "PLUGIN_ARTIFACT=neuroglancer-plugin-${safe_ref}.zip" >> "$GITHUB_ENV"
+          echo "OUROBOROS_PLUGIN_RELEASE_TAG=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+          echo "OUROBOROS_PLUGIN_ARTIFACT=neuroglancer-plugin-${safe_ref}.zip" >> "$GITHUB_ENV"
+
+      - name: Build release layout
+        run: npm run build:release
+
+      - name: Validate release layout
+        run: npm run validate:release
 
       - name: Archive Release
         uses: thedoctor0/zip-release@0.7.5
