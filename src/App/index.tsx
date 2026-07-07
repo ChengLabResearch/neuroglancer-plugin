@@ -50,6 +50,12 @@ function App(): JSX.Element {
 		null
 	)
 
+	// The most recent directory-contents request we issued. Responses whose
+	// requestId does not match are stale (e.g. from a previous root) and
+	// ignored to prevent overwriting fresh state with older data.
+	const activeRequestIdRef = useRef<string | null>(null)
+	const requestCounterRef = useRef<number>(0)
+
 	const [showModal, setShowModal] = useState<boolean>(false)
 	const [form, setForm] = useState<string>("")
 
@@ -180,9 +186,80 @@ function App(): JSX.Element {
 			const result = event.data
 
 			switch (result.type) {
-				case "send-directory-contents":
+				case "send-directory-contents": {
+					// Root-change broadcast: carries directoryPath / directoryName
+					// but ships an empty nodes tree since ouroboros #106. Preserve
+					// the metadata, then request the recursive tree separately.
 					setDirectoryData(result)
+
+					const nextPath: string | null =
+						result?.data?.directoryPath ?? null
+					if (!nextPath) {
+						activeRequestIdRef.current = null
+						break
+					}
+
+					const requestId = `loadfile-${++requestCounterRef.current}`
+					activeRequestIdRef.current = requestId
+
+					parent.postMessage(
+						{
+							type: "request-directory-contents",
+							data: {
+								path: nextPath,
+								recursive: true,
+								requestId,
+							},
+						},
+						"*"
+					)
 					break
+				}
+				case "send-directory-contents-response": {
+					// Late responses from a previous root arrive after we've moved
+					// on; drop them. requestId is nullable in the schema, so a
+					// missing id also fails to match.
+					if (result?.data?.requestId !== activeRequestIdRef.current) {
+						break
+					}
+
+					const responsePath: string = result.data.path
+					const responseNodes: NodeChildren =
+						result.data.nodes ?? {}
+					const errorCode: string | undefined = result.data.error?.code
+
+					// denied / not-found / internal → treat as empty tree; the
+					// user's "no files" state is already the right rendering.
+					// limit → partial nodes present; render what we got.
+					// (The truncated flag could surface a hint later; keep the
+					// current diff focused on unblocking discovery.)
+					const nextNodes: NodeChildren =
+						errorCode === "denied" ||
+						errorCode === "not-found" ||
+						errorCode === "internal"
+							? {}
+							: responseNodes
+
+					if (errorCode === "internal") {
+						console.error(
+							"request-directory-contents failed:",
+							result.data.error
+						)
+					}
+
+					setDirectoryData((prev) => {
+						if (!prev) return prev
+						if (prev.data.directoryPath !== responsePath) return prev
+						return {
+							...prev,
+							data: {
+								...prev.data,
+								nodes: nextNodes,
+							},
+						}
+					})
+					break
+				}
 				case "send-neuroglancer-json":
 				case "read-file-response":
 					if (viewerMode === "ngrefactor") {
