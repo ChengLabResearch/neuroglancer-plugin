@@ -25,8 +25,8 @@ To test in Ouroboros, run Ouroboros in development mode as well, and use the `Te
 
 The current production pin for Ouroboros package builds is:
 
-- tag: `v1.0.1`
-- release asset: `neuroglancer-plugin-v1.0.1.zip`
+- tag: `v1.1.0`
+- release asset: `neuroglancer-plugin-v1.1.0.zip`
 
 That asset archive root is the same layout that Ouroboros expects inside its
 plugin folder:
