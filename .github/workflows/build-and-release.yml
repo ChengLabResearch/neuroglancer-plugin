@@ -35,8 +35,8 @@ jobs:
       contents: read
 
     env:
-      OUROBOROS_PLUGIN_RELEASE_TAG: v1.1.0-ci
-      OUROBOROS_PLUGIN_ARTIFACT: neuroglancer-plugin-v1.1.0-ci.zip
+      OUROBOROS_PLUGIN_RELEASE_TAG: v1.1.1-ci
+      OUROBOROS_PLUGIN_ARTIFACT: neuroglancer-plugin-v1.1.1-ci.zip
 
     steps:
       - name: Check out Git repository

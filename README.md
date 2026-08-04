@@ -31,8 +31,8 @@ responses from the first root do not replace the second tree.
 
 The current production pin for Ouroboros package builds is:
 
-- tag: `v1.1.0`
-- release asset: `neuroglancer-plugin-v1.1.0.zip`
+- tag: `v1.1.1`
+- release asset: `neuroglancer-plugin-v1.1.1.zip`
 
 That asset archive root is the same layout that Ouroboros expects inside its
 plugin folder:
