@@ -14,12 +14,18 @@ Neuroglancer can do this natively, but the menu buttons integrate into Ouroboros
 
 ### Development
 
-Make sure Docker is installed and running.
+Use Node.js 24 and npm 11.19.0. Make sure Docker is installed and running.
 
-1. `npm install`
-2. `npm run dev`
+1. `npm ci`
+2. `npm test`
+3. `npm run dev`
 
 To test in Ouroboros, run Ouroboros in development mode as well, and use the `Test Plugin` page to view the plugin.
+
+For the directory-discovery integration smoke, use current Ouroboros `main`,
+open a directory containing nested JSON files, and verify that Load JSON shows
+the recursive tree. Switch quickly to a second root and confirm that late
+responses from the first root do not replace the second tree.
 
 ### Release artifact
 

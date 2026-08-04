@@ -5,7 +5,10 @@ on:
     paths:
       - .github/workflows/build-and-release.yml
       - package.json
+      - package-lock.json
       - scripts/**
+      - tests/**
+      - tsconfig*.json
       - vite.config.ts
       - src/**
       - backend/**
@@ -20,7 +23,55 @@ env:
 
 
 jobs:
+  regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    permissions:
+      contents: read
+
+    env:
+      OUROBOROS_PLUGIN_RELEASE_TAG: v1.1.0-ci
+      OUROBOROS_PLUGIN_ARTIFACT: neuroglancer-plugin-v1.1.0-ci.zip
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v7
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install npm
+        run: npm install --global npm@11.19.0
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Test directory protocol
+        run: npm test
+
+      - name: Smoke Vite development entry points
+        run: npm run smoke:dev
+
+      - name: Audit dependencies
+        if: runner.os == 'Linux'
+        run: npm audit --audit-level=moderate
+
+      - name: Build release layout
+        run: npm run build:release
+
+      - name: Validate release layout
+        run: npm run validate:release
+
   plugin-artifact:
+    needs: regression
     runs-on: ubuntu-latest
 
     permissions:
@@ -33,10 +84,14 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
+          cache: npm
 
-      - name: Install Dependencies
-        run: npm install
+      - name: Install npm
+        run: npm install --global npm@11.19.0
+
+      - name: Install locked dependencies
+        run: npm ci
 
       - name: Set release metadata
         run: |
@@ -57,6 +112,9 @@ jobs:
           type: 'zip'
           filename: ${{ env.PLUGIN_ARTIFACT }}
           directory: 'dist'
+
+      - name: Validate release archive
+        run: npm run validate:archive -- "dist/${PLUGIN_ARTIFACT}"
 
       - name: Upload artifact for PR validation
         uses: actions/upload-artifact@v7

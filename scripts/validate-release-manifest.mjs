@@ -16,6 +16,36 @@ assert(
 	existsSync(join(dist, packageJson.dockerCompose)),
 	`release layout is missing ${packageJson.dockerCompose}`
 )
+for (const required of [
+	'ngrefactor.html',
+	'Dockerfile',
+	'requirements.txt',
+	'app/main.py'
+]) {
+	assert(existsSync(join(dist, required)), `release layout is missing ${required}`)
+}
+
+const packagedPackageJson = JSON.parse(
+	await readFile(join(dist, 'package.json'), 'utf8')
+)
+assert(packagedPackageJson.name === packageJson.name, 'packaged name mismatch')
+assert(
+	packagedPackageJson.version === packageJson.version,
+	'packaged version mismatch'
+)
+
+for (const htmlPath of ['index.html', 'ngrefactor.html']) {
+	const html = await readFile(join(dist, htmlPath), 'utf8')
+	const assetPaths = [...html.matchAll(/(?:src|href)=["']\.\/?(assets\/[^"']+)["']/gu)]
+		.map((match) => match[1])
+	assert(assetPaths.length > 0, `${htmlPath} does not reference built assets`)
+	for (const assetPath of assetPaths) {
+		assert(
+			existsSync(join(dist, assetPath)),
+			`${htmlPath} references missing asset ${assetPath}`
+		)
+	}
+}
 
 const manifest = JSON.parse(await readFile(join(dist, 'plugin-release.json'), 'utf8'))
 

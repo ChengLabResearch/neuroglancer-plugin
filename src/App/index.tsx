@@ -4,6 +4,18 @@ import Menu from "./Menu"
 import Modal from "./Modal"
 import LoadFile from "./LoadFile"
 import SaveFile from "./SaveFile"
+import {
+	applyDirectoryContentsResponse,
+	createDirectoryContentsRequest,
+	parseDirectoryContentsResponse,
+	type DirectoryData,
+} from "./directoryRequests"
+
+export type {
+	DirectoryData,
+	FileSystemNode,
+	NodeChildren,
+} from "./directoryRequests"
 
 // NOTE: Change the PORT to the port of the server from the backend
 // The app's server is running on port 8000, so use a different port
@@ -19,25 +31,6 @@ type EmbeddedViewer = {
 		restoreState: (state: object) => void
 		toJSON: () => object
 	}
-}
-
-export type DirectoryData = {
-	type: string
-	data: {
-		directoryPath: string | null
-		directoryName: string | null
-		nodes: NodeChildren
-	}
-}
-
-export type FileSystemNode = {
-	name: string
-	path: string
-	children?: NodeChildren
-}
-
-export type NodeChildren = {
-	[key: string]: FileSystemNode
 }
 
 function App(): JSX.Element {
@@ -199,65 +192,32 @@ function App(): JSX.Element {
 						break
 					}
 
-					const requestId = `loadfile-${++requestCounterRef.current}`
+					const { requestId, message } =
+						createDirectoryContentsRequest(
+							nextPath,
+							++requestCounterRef.current,
+						)
 					activeRequestIdRef.current = requestId
-
-					parent.postMessage(
-						{
-							type: "request-directory-contents",
-							data: {
-								path: nextPath,
-								recursive: true,
-								requestId,
-							},
-						},
-						"*"
-					)
+					parent.postMessage(message, "*")
 					break
 				}
 				case "send-directory-contents-response": {
-					// Late responses from a previous root arrive after we've moved
-					// on; drop them. requestId is nullable in the schema, so a
-					// missing id also fails to match.
-					if (result?.data?.requestId !== activeRequestIdRef.current) {
-						break
-					}
+					const response = parseDirectoryContentsResponse(
+						result,
+						activeRequestIdRef.current,
+					)
+					if (!response) break
 
-					const responsePath: string = result.data.path
-					const responseNodes: NodeChildren =
-						result.data.nodes ?? {}
-					const errorCode: string | undefined = result.data.error?.code
-
-					// denied / not-found / internal → treat as empty tree; the
-					// user's "no files" state is already the right rendering.
-					// limit → partial nodes present; render what we got.
-					// (The truncated flag could surface a hint later; keep the
-					// current diff focused on unblocking discovery.)
-					const nextNodes: NodeChildren =
-						errorCode === "denied" ||
-						errorCode === "not-found" ||
-						errorCode === "internal"
-							? {}
-							: responseNodes
-
-					if (errorCode === "internal") {
+					if (response.error?.code === "internal") {
 						console.error(
 							"request-directory-contents failed:",
-							result.data.error
+							response.error,
 						)
 					}
 
-					setDirectoryData((prev) => {
-						if (!prev) return prev
-						if (prev.data.directoryPath !== responsePath) return prev
-						return {
-							...prev,
-							data: {
-								...prev.data,
-								nodes: nextNodes,
-							},
-						}
-					})
+					setDirectoryData((prev) =>
+						applyDirectoryContentsResponse(prev, response),
+					)
 					break
 				}
 				case "send-neuroglancer-json":
