@@ -28,10 +28,10 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
 
@@ -59,14 +59,14 @@ jobs:
           directory: 'dist'
 
       - name: Upload artifact for PR validation
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.PLUGIN_ARTIFACT }}
           path: dist/${{ env.PLUGIN_ARTIFACT }}
 
       - name: Upload Release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: ncipollo/release-action@v1.12.0
+        uses: ncipollo/release-action@v1.21.0
         with:
           artifacts: dist/${{ env.PLUGIN_ARTIFACT }}
           token: ${{ secrets.GITHUB_TOKEN }}
